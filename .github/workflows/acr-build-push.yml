@@ -25,7 +25,7 @@ env:
   CONTAINER_NAME: "Wannabe OBS Director"
 
 jobs:
-    build-and-deploy:
+    build-and-push:
         runs-on: ubuntu-latest
         steps:
         # checkout the repo
@@ -46,3 +46,34 @@ jobs:
         - run: |
             docker build . -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/sampleapp:${{ github.sha }}
             docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/sampleapp:${{ github.sha }}
+            
+    deploy:
+      name: Deploy
+      runs-on: ubuntu-latest
+
+      steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v1
+        with:
+          kustomize-version: "3.6.1"
+
+      - name: Update Kubernetes resources
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        run: |
+         cd kustomize/base
+         kustomize edit set image hello-gitops=$DOCKER_USERNAME/hello-gitops:$GITHUB_SHA
+         cat kustomization.yaml
+
+      - name: Commit files
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git commit -am "Bump docker tag"
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
